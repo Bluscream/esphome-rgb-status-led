@@ -170,6 +170,31 @@ error_color:
 | `warning_blink_speed` | 1500ms | Blink period for warning state |
 | `brightness` | 50% | Global brightness multiplier |
 | `priority_mode` | "status" | "status" or "user" priority mode |
+| `ok_state_enabled` | true | Show OK state (true) or turn LED off when OK (false) |
+
+### OK State Configuration
+
+The `ok_state_enabled` option provides power-saving functionality:
+
+- **`true`** (default): LED shows configured `ok_color` when everything is normal
+- **`false`**: LED turns OFF when everything is normal (only lights up for important states)
+
+**Example for power saving:**
+```yaml
+light:
+  - platform: rgb_status_led
+    # ... other configuration ...
+    ok_state_enabled: false  # LED off when everything is OK
+```
+
+**With `ok_state_enabled: false`, the LED behavior becomes:**
+- Boot: Red solid (first 10 seconds)
+- WiFi connected: White solid  
+- API connected: Green solid
+- Errors: Red fast blink
+- Warnings: Orange slow blink
+- OTA: Blue solid/blinking
+- **Everything OK: LED OFF** (power saving)
 
 ### Priority Modes
 

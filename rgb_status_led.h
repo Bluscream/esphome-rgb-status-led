@@ -130,6 +130,7 @@ class RGBStatusLED : public light::LightOutput, public Component {
   void set_priority_mode(const std::string &mode) {
     priority_mode_ = (mode == "user") ? PriorityMode::USER_PRIORITY : PriorityMode::STATUS_PRIORITY;
   }
+  void set_ok_state_enabled(bool enabled) { ok_state_enabled_ = enabled; }
 
  protected:
   /// @brief Tag for logging
@@ -167,6 +168,7 @@ class RGBStatusLED : public light::LightOutput, public Component {
 
   // Priority and behavior configuration
   PriorityMode priority_mode_{PriorityMode::STATUS_PRIORITY};
+  bool ok_state_enabled_{true};  ///< Whether to show OK state or turn LED off
 
   // State management
   StatusState current_state_{StatusState::BOOT};  ///< Currently displayed state

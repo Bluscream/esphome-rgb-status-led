@@ -40,6 +40,7 @@ CONF_ERROR_BLINK_SPEED = "error_blink_speed"
 CONF_WARNING_BLINK_SPEED = "warning_blink_speed"
 CONF_BRIGHTNESS = "brightness"
 CONF_PRIORITY_MODE = "priority_mode"
+CONF_OK_STATE_ENABLED = "ok_state_enabled"
 
 # Schema for RGB color configuration
 # Each color requires red, green, and blue components as percentages (0.0 to 1.0)
@@ -79,6 +80,11 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
         # "status": Status indications take priority over user control
         # "user": User control takes priority over status indications
         cv.Optional(CONF_PRIORITY_MODE, default="status"): cv.enum(["status", "user"]),
+        
+        # OK state configuration
+        # "true": Show OK state with configured color
+        # "false": Turn LED off when everything is OK (power saving)
+        cv.Optional(CONF_OK_STATE_ENABLED, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -134,6 +140,7 @@ async def to_code(config):
     cg.add(var.set_warning_blink_speed(config[CONF_WARNING_BLINK_SPEED]))
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
     cg.add(var.set_priority_mode(config[CONF_PRIORITY_MODE]))
+    cg.add(var.set_ok_state_enabled(config[CONF_OK_STATE_ENABLED]))
     
     # Enable the component in the build
     cg.add_define("USE_RGB_STATUS_LED")

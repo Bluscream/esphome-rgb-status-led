@@ -1,0 +1,111 @@
+# Example configuration with OK state disabled for power saving
+
+# Use local external components
+external_components:
+  - source: components
+
+# Enhanced RGB Status LED Component with OK state disabled
+light:
+  - platform: rgb_status_led
+    id: system_status_led
+    name: "System Status LED"
+    red: out_led_r
+    green: out_led_g
+    blue: out_led_b
+    
+    # Custom colors for different states
+    error_color:
+      red: 100%
+      green: 0%
+      blue: 0%
+    warning_color:
+      red: 100%
+      green: 50%
+      blue: 0%
+    ok_color:
+      red: 0%
+      green: 100%
+      blue: 10%
+    boot_color:
+      red: 100%
+      green: 0%
+      blue: 0%
+    wifi_color:
+      red: 70%
+      green: 70%
+      blue: 70%
+    api_color:
+      red: 0%
+      green: 100%
+      blue: 10%
+    ota_color:
+      red: 0%
+      green: 0%
+      blue: 100%
+    
+    # Timing configuration
+    error_blink_speed: 250ms
+    warning_blink_speed: 1500ms
+    brightness: 50%
+    
+    # Priority mode: "status" (default, status takes priority) or "user" (user control takes priority)
+    priority_mode: "status"
+    
+    # NEW: OK state configuration
+    # When false, LED will be OFF when everything is OK (power saving)
+    # When true (default), LED will show OK color when everything is fine
+    ok_state_enabled: false
+
+output:
+  - platform: ledc
+    id: out_led_r
+    pin: GPIO4
+    channel: 0
+  - platform: ledc
+    id: out_led_g
+    pin: GPIO19
+    channel: 1
+  - platform: ledc
+    id: out_led_b
+    pin: GPIO18
+    channel: 2
+
+# Example event integrations
+wifi:
+  on_connect: 
+    then:
+      - lambda: 'id(system_status_led).set_wifi_connected(true);'
+  on_disconnect: 
+    then:
+      - lambda: 'id(system_status_led).set_wifi_connected(false);'
+
+api:
+  on_client_connected:
+    then:
+      - lambda: 'id(system_status_led).set_api_connected(true);'
+  on_client_disconnected:
+    then:
+      - lambda: 'id(system_status_led).set_api_connected(false);'
+
+ota:
+  on_begin:
+    then:
+      - lambda: 'id(system_status_led).set_ota_begin();'
+  on_progress:
+    then:
+      - lambda: 'id(system_status_led).set_ota_progress();'
+  on_end:
+    then:
+      - lambda: 'id(system_status_led).set_ota_end();'
+  on_error:
+    then:
+      - lambda: 'id(system_status_led).set_ota_error();'
+
+# With ok_state_enabled: false, the LED behavior will be:
+# - Boot: Red solid (first 10 seconds)
+# - WiFi connected: White solid
+# - API connected: Green solid  
+# - Errors: Red fast blink
+# - Warnings: Orange slow blink
+# - OTA: Blue solid/blinking
+# - Everything OK: LED OFF (power saving)

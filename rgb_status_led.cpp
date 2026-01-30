@@ -149,7 +149,12 @@ StatusState RGBStatusLED::determine_status_state_() {
   
   // Priority 7: Everything is OK (lowest priority)
   // No specific state to show - device is running normally
-  return StatusState::OK;
+  // If OK state is disabled, return NONE to turn LED off
+  if (this->ok_state_enabled_) {
+    return StatusState::OK;
+  } else {
+    return StatusState::NONE;
+  }
 }
 
 bool RGBStatusLED::should_show_status_() {
@@ -252,6 +257,12 @@ void RGBStatusLED::apply_state_(StatusState state) {
     case StatusState::OK:
       // Solid OK color
       this->set_rgb_output_(this->ok_color_);
+      this->is_blink_on_ = false;
+      break;
+      
+    case StatusState::NONE:
+      // LED off (used when OK state is disabled)
+      this->set_rgb_output_(0.0f, 0.0f, 0.0f);
       this->is_blink_on_ = false;
       break;
       
