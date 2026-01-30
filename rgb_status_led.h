@@ -5,6 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/core/application.h"
+#include <string>
 
 namespace esphome {
 namespace rgb_status_led {
@@ -38,16 +39,33 @@ enum class PriorityMode {
 };
 
 /**
+ * @brief Event configuration structure for different states
+ */
+struct EventConfig {
+  bool enabled{true};                    ///< Whether this event is enabled
+  RGBColor color{0.0f, 0.0f, 0.0f};     ///< Color for this event
+  float brightness{1.0f};                ///< Brightness override (0.0-1.0, 1.0 = use global)
+  std::string effect{"none"};            ///< Effect to apply ("none", "blink", "pulse", etc.)
+  
+  EventConfig() = default;
+  EventConfig(bool en, const RGBColor &col, float bright = 1.0f, const std::string &eff = "none")
+    : enabled(en), color(col), brightness(bright), effect(eff) {}
+};
+
+/**
  * @brief RGB Status LED Component
  * 
- * This component provides intelligent RGB LED status indication by combining:
- * - Native ESPHome application state monitoring (errors, warnings)
- * - Connection state tracking (WiFi, API)
- * - OTA progress indication
- * - Boot phase detection
- * - User control with priority management
+ * This component provides intelligent RGB LED status indication using event-driven
+ * configuration similar to ESPHome's internal status_led but with RGB capabilities.
  * 
- * Priority order (highest to lowest): OTA_ERROR > OTA_BEGIN > OTA_PROGRESS > ERROR > WARNING > BOOT > API_CONNECTED > WIFI_CONNECTED > USER > OK
+ * Events are configured declaratively in YAML and automatically trigger based on
+ * system state changes, WiFi/API connections, and OTA operations.
+ * 
+ * Default behavior matches ESPHome's internal status_led with RGB colors:
+ * - Error: Red fast blink (60% duty, 250ms period)
+ * - Warning: Orange slow blink (17% duty, 1500ms period)  
+ * - OK: Green solid (or off if disabled)
+ * - Boot: Red solid (first 10 seconds)
  */
 class RGBStatusLED : public light::LightOutput, public Component {
  public:
@@ -64,66 +82,25 @@ class RGBStatusLED : public light::LightOutput, public Component {
   light::LightTraits get_traits() override;
   void write_state(light::LightState *state) override;
 
-  /**
-   * @brief Event trigger methods (callable from YAML automations)
-   * 
-   * These methods can be called from ESPHome automations to trigger
-   * specific status states. They provide a clean interface between
-   * YAML configurations and the C++ implementation.
-   */
-  
-  /// @brief Set WiFi connection status
-  void set_wifi_connected(bool connected) { 
-    wifi_connected_ = connected; 
-    ESP_LOGD(TAG, "WiFi %s", connected ? "connected" : "disconnected");
-  }
-  
-  /// @brief Set Home Assistant API connection status
-  void set_api_connected(bool connected) { 
-    api_connected_ = connected; 
-    ESP_LOGD(TAG, "API %s", connected ? "connected" : "disconnected");
-  }
-  
-  /// @brief Mark OTA update as started
-  void set_ota_begin() { 
-    ota_active_ = true; 
-    ota_progress_time_ = millis(); 
-    ESP_LOGD(TAG, "OTA update started");
-  }
-  
-  /// @brief Update OTA progress timestamp (for blinking effect)
-  void set_ota_progress() { 
-    ota_progress_time_ = millis(); 
-    ESP_LOGVV(TAG, "OTA progress update");
-  }
-  
-  /// @brief Mark OTA update as completed successfully
-  void set_ota_end() { 
-    ota_active_ = false; 
-    ESP_LOGD(TAG, "OTA update completed");
-  }
-  
-  /// @brief Mark OTA update as failed
-  void set_ota_error() { 
-    ota_active_ = false; 
-    ESP_LOGD(TAG, "OTA update error");
-  }
+  // Event configuration methods
+  void set_error_config(const EventConfig &config) { error_config_ = config; }
+  void set_warning_config(const EventConfig &config) { warning_config_ = config; }
+  void set_ok_config(const EventConfig &config) { ok_config_ = config; }
+  void set_boot_config(const EventConfig &config) { boot_config_ = config; }
+  void set_wifi_connected_config(const EventConfig &config) { wifi_connected_config_ = config; }
+  void set_api_connected_config(const EventConfig &config) { api_connected_config_ = config; }
+  void set_api_disconnected_config(const EventConfig &config) { api_disconnected_config_ = config; }
+  void set_ota_begin_config(const EventConfig &config) { ota_begin_config_ = config; }
+  void set_ota_progress_config(const EventConfig &config) { ota_progress_config_ = config; }
+  void set_ota_end_config(const EventConfig &config) { ota_end_config_ = config; }
+  void set_ota_error_config(const EventConfig &config) { ota_error_config_ = config; }
 
   // Output configuration
   void set_red_output(output::FloatOutput *output) { red_output_ = output; }
   void set_green_output(output::FloatOutput *output) { green_output_ = output; }
   void set_blue_output(output::FloatOutput *output) { blue_output_ = output; }
 
-  // Color configuration
-  void set_error_color(float r, float g, float b) { error_color_ = {r, g, b}; }
-  void set_warning_color(float r, float g, float b) { warning_color_ = {r, g, b}; }
-  void set_ok_color(float r, float g, float b) { ok_color_ = {r, g, b}; }
-  void set_boot_color(float r, float g, float b) { boot_color_ = {r, g, b}; }
-  void set_wifi_color(float r, float g, float b) { wifi_color_ = {r, g, b}; }
-  void set_api_color(float r, float g, float b) { api_color_ = {r, g, b}; }
-  void set_ota_color(float r, float g, float b) { ota_color_ = {r, g, b}; }
-
-  // Behavior configuration
+  // Global configuration
   void set_error_blink_speed(uint32_t speed) { error_blink_speed_ = speed; }
   void set_warning_blink_speed(uint32_t speed) { warning_blink_speed_ = speed; }
   void set_brightness(float brightness) { brightness_ = brightness; }
@@ -152,14 +129,18 @@ class RGBStatusLED : public light::LightOutput, public Component {
     RGBColor(float red = 0, float green = 0, float blue = 0) : r(red), g(green), b(blue) {}
   };
   
-  // Color definitions with sensible defaults
-  RGBColor error_color_{1.0f, 0.0f, 0.0f};     ///< Red for errors
-  RGBColor warning_color_{1.0f, 0.5f, 0.0f};   ///< Orange for warnings
-  RGBColor ok_color_{0.0f, 1.0f, 0.1f};        ///< Green for OK state
-  RGBColor boot_color_{1.0f, 0.0f, 0.0f};      ///< Red for boot phase
-  RGBColor wifi_color_{0.7f, 0.7f, 0.7f};      ///< White for WiFi connected
-  RGBColor api_color_{0.0f, 1.0f, 0.1f};       ///< Green for API connected
-  RGBColor ota_color_{0.0f, 0.0f, 1.0f};       ///< Blue for OTA operations
+  // Event configurations with ESPHome-compatible defaults
+  EventConfig error_config_{true, {1.0f, 0.0f, 0.0f}, 1.0f, "blink"};        ///< Red fast blink
+  EventConfig warning_config_{true, {1.0f, 0.5f, 0.0f}, 1.0f, "blink"};      ///< Orange slow blink
+  EventConfig ok_config_{true, {0.0f, 1.0f, 0.1f}, 1.0f, "none"};           ///< Green solid
+  EventConfig boot_config_{true, {1.0f, 0.0f, 0.0f}, 1.0f, "none"};          ///< Red solid
+  EventConfig wifi_connected_config_{true, {0.7f, 0.7f, 0.7f}, 1.0f, "none"}; ///< White solid
+  EventConfig api_connected_config_{true, {0.0f, 1.0f, 0.1f}, 1.0f, "none"};   ///< Green solid
+  EventConfig api_disconnected_config_{true, {1.0f, 1.0f, 0.0f}, 1.0f, "none"}; ///< Yellow solid
+  EventConfig ota_begin_config_{true, {0.0f, 0.0f, 1.0f}, 1.0f, "none"};      ///< Blue solid
+  EventConfig ota_progress_config_{true, {0.0f, 0.0f, 1.0f}, 1.0f, "blink"};   ///< Blue blink
+  EventConfig ota_end_config_{true, {0.0f, 1.0f, 0.1f}, 1.0f, "none"};        ///< Green solid
+  EventConfig ota_error_config_{true, {1.0f, 0.0f, 0.0f}, 1.0f, "blink"};      ///< Red fast blink
 
   // Timing configuration - matches ESPHome internal status_led exactly
   uint32_t error_blink_speed_{250};     ///< Error blink period in milliseconds (matches ESPHome)
@@ -191,6 +172,12 @@ class RGBStatusLED : public light::LightOutput, public Component {
   StatusState determine_status_state_();                           ///< Determine current status based on all inputs
   void apply_state_(StatusState state);                           ///< Apply visual effects for a state
   bool should_show_status_();                                     ///< Check if status should override user control
+  void apply_effect_(const EventConfig &config);                   ///< Apply effect based on configuration
+  
+  // Effect methods
+  void apply_none_effect_(const EventConfig &config);             ///< Solid color effect
+  void apply_blink_effect_(const EventConfig &config, uint32_t period, uint32_t on_time); ///< Blink effect
+  void apply_pulse_effect_(const EventConfig &config);            ///< Pulse effect
   
   // Blink effect management
   bool is_blink_on_{false};            ///< Current blink state (on/off)

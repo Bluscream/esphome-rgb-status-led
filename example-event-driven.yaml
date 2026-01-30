@@ -1,0 +1,187 @@
+# Example configuration with new event-driven structure
+
+# Use local external components
+external_components:
+  - source: components
+
+# Enhanced RGB Status LED Component with event-based configuration
+light:
+  - platform: rgb_status_led
+    id: system_status_led
+    name: "System Status LED"
+    red: out_led_r
+    green: out_led_g
+    blue: out_led_b
+    
+    # Event-based configuration - each event can be enabled/disabled independently
+    # with custom colors, brightness, and effects
+    
+    # System errors (highest priority)
+    error:
+      enabled: true
+      color:
+        red: 100%
+        green: 0%
+        blue: 0%
+      brightness: 100%
+      effect: "blink"  # Fast blink (ESPHome compatible: 250ms, 60% duty)
+    
+    # System warnings
+    warning:
+      enabled: true
+      color:
+        red: 100%
+        green: 50%
+        blue: 0%
+      brightness: 80%
+      effect: "blink"  # Slow blink (ESPHome compatible: 1500ms, 17% duty)
+    
+    # Boot phase
+    boot:
+      enabled: true
+      color:
+        red: 100%
+        green: 0%
+        blue: 0%
+      brightness: 50%
+      effect: "none"  # Solid
+    
+    # Everything OK (can be disabled for power saving)
+    ok:
+      enabled: true
+      color:
+        red: 0%
+        green: 100%
+        blue: 10%
+      brightness: 30%
+      effect: "none"  # Solid
+    
+    # WiFi connected
+    wifi_connected:
+      enabled: true
+      color:
+        red: 70%
+        green: 70%
+        blue: 70%
+      brightness: 40%
+      effect: "none"  # Solid white
+    
+    # Home Assistant API connected
+    api_connected:
+      enabled: true
+      color:
+        red: 0%
+        green: 100%
+        blue: 10%
+      brightness: 60%
+      effect: "none"  # Solid green
+    
+    # Home Assistant API disconnected
+    api_disconnected:
+      enabled: true
+      color:
+        red: 100%
+        green: 100%
+        blue: 0%
+      brightness: 50%
+      effect: "pulse"  # Pulsing yellow
+    
+    # OTA update started
+    ota_begin:
+      enabled: true
+      color:
+        red: 0%
+        green: 0%
+        blue: 100%
+      brightness: 100%
+      effect: "none"  # Solid blue
+    
+    # OTA update in progress
+    ota_progress:
+      enabled: true
+      color:
+        red: 0%
+        green: 0%
+        blue: 100%
+      brightness: 100%
+      effect: "blink"  # Blinking blue
+    
+    # OTA update completed
+    ota_end:
+      enabled: true
+      color:
+        red: 0%
+        green: 100%
+        blue: 10%
+      brightness: 100%
+      effect: "none"  # Solid green
+    
+    # OTA update failed
+    ota_error:
+      enabled: true
+      color:
+        red: 100%
+        green: 0%
+        blue: 0%
+      brightness: 100%
+      effect: "blink"  # Fast red blink
+    
+    # Global configuration
+    error_blink_speed: 250ms
+    warning_blink_speed: 1500ms
+    brightness: 50%
+    priority_mode: "status"
+    ok_state_enabled: true
+
+output:
+  - platform: ledc
+    id: out_led_r
+    pin: GPIO4
+    channel: 0
+  - platform: ledc
+    id: out_led_g
+    pin: GPIO19
+    channel: 1
+  - platform: ledc
+    id: out_led_b
+    pin: GPIO18
+    channel: 2
+
+# Event integrations (still needed for WiFi, API, and OTA events)
+wifi:
+  on_connect: 
+    then:
+      - lambda: 'id(system_status_led).set_wifi_connected(true);'
+  on_disconnect: 
+    then:
+      - lambda: 'id(system_status_led).set_wifi_connected(false);'
+
+api:
+  on_client_connected:
+    then:
+      - lambda: 'id(system_status_led).set_api_connected(true);'
+  on_client_disconnected:
+    then:
+      - lambda: 'id(system_status_led).set_api_connected(false);'
+
+ota:
+  on_begin:
+    then:
+      - lambda: 'id(system_status_led).set_ota_begin();'
+  on_progress:
+    then:
+      - lambda: 'id(system_status_led).set_ota_progress();'
+  on_end:
+    then:
+      - lambda: 'id(system_status_led).set_ota_end();'
+  on_error:
+    then:
+      - lambda: 'id(system_status_led).set_ota_error();'
+
+# Benefits of the new event-based structure:
+# 1. Declarative configuration - no need for manual lambda calls for colors/effects
+# 2. Individual event control - enable/disable specific events
+# 3. Per-event brightness override - different brightness for different states
+# 4. Multiple effects - none, blink, pulse with automatic timing
+# 5. ESPHome compatible defaults - matches internal status_led behavior
+# 6. Power saving - disable OK state to turn LED off when everything is fine

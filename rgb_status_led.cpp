@@ -1,5 +1,6 @@
 #include "rgb_status_led.h"
 #include "esphome/core/log.h"
+#include <cmath>
 
 namespace esphome {
 namespace rgb_status_led {
@@ -171,93 +172,130 @@ bool RGBStatusLED::should_show_status_() {
   return true;
 }
 
-void RGBStatusLED::apply_state_(StatusState state) {
-  this->current_state_ = state;
+void RGBStatusLED::apply_effect_(const EventConfig &config) {
+  if (!config.enabled) {
+    // Event disabled - turn off LED
+    this->set_rgb_output_(0.0f, 0.0f, 0.0f);
+    this->is_blink_on_ = false;
+    return;
+  }
+  
+  // Apply brightness override if specified (1.0 = use global brightness)
+  float brightness_scale = (config.brightness == 1.0f) ? this->brightness_ : config.brightness;
+  
+  // Apply the specified effect
+  if (config.effect == "none") {
+    this->apply_none_effect_(config);
+  } else if (config.effect == "blink") {
+    // Determine blink timing based on context (error vs warning vs other)
+    uint32_t period = 1000;  // Default 1 second
+    uint32_t on_time = 500;  // Default 50% duty
+    
+    // Use ESPHome-compatible timing for error/warning
+    if (&config == &this->error_config_) {
+      period = this->error_blink_speed_;
+      on_time = period * 3 / 5;  // 60% duty cycle
+    } else if (&config == &this->warning_config_) {
+      period = this->warning_blink_speed_;
+      on_time = period / 6;  // 17% duty cycle
+    }
+    
+    this->apply_blink_effect_(config, period, on_time);
+  } else if (config.effect == "pulse") {
+    this->apply_pulse_effect_(config);
+  } else {
+    // Unknown effect - default to solid
+    this->apply_none_effect_(config);
+  }
+}
+
+void RGBStatusLED::apply_none_effect_(const EventConfig &config) {
+  // Apply brightness override if specified
+  float brightness_scale = (config.brightness == 1.0f) ? this->brightness_ : config.brightness;
+  this->set_rgb_output_(config.color, brightness_scale);
+  this->is_blink_on_ = false;
+}
+
+void RGBStatusLED::apply_blink_effect_(const EventConfig &config, uint32_t period, uint32_t on_time) {
   uint32_t now = millis();
   
-  switch (state) {
-    case StatusState::ERROR: {
-      // Fast blinking - match ESPHome timing: 250ms period, 150ms on (60% duty cycle)
-      uint32_t period = this->error_blink_speed_;
-      uint32_t on_time = period * 3 / 5;  // 60% on, 40% off (matching ESPHome)
-      
-      if ((now % period) < on_time) {
-        if (!this->is_blink_on_) {
-          this->set_rgb_output_(this->error_color_);
-          this->is_blink_on_ = true;
-        }
-      } else {
-        if (this->is_blink_on_) {
-          this->set_rgb_output_(0.0f, 0.0f, 0.0f);
-          this->is_blink_on_ = false;
-        }
-      }
-      break;
+  // Apply brightness override if specified
+  float brightness_scale = (config.brightness == 1.0f) ? this->brightness_ : config.brightness;
+  
+  if ((now % period) < on_time) {
+    if (!this->is_blink_on_) {
+      this->set_rgb_output_(config.color, brightness_scale);
+      this->is_blink_on_ = true;
     }
-    
-    case StatusState::WARNING: {
-      // Slow blinking - match ESPHome timing: 1500ms period, 250ms on (17% duty cycle)
-      uint32_t period = this->warning_blink_speed_;
-      uint32_t on_time = period / 6;  // 17% on, 83% off (matching ESPHome)
-      
-      if ((now % period) < on_time) {
-        if (!this->is_blink_on_) {
-          this->set_rgb_output_(this->warning_color_);
-          this->is_blink_on_ = true;
-        }
-      } else {
-        if (this->is_blink_on_) {
-          this->set_rgb_output_(0.0f, 0.0f, 0.0f);
-          this->is_blink_on_ = false;
-        }
-      }
-      break;
-    }
-    
-    case StatusState::BOOT:
-      // Solid boot color
-      this->set_rgb_output_(this->boot_color_);
+  } else {
+    if (this->is_blink_on_) {
+      this->set_rgb_output_(0.0f, 0.0f, 0.0f);
       this->is_blink_on_ = false;
+    }
+  }
+}
+
+void RGBStatusLED::apply_pulse_effect_(const EventConfig &config) {
+  uint32_t now = millis();
+  
+  // Apply brightness override if specified
+  float brightness_scale = (config.brightness == 1.0f) ? this->brightness_ : config.brightness;
+  
+  // Create a smooth pulse effect over 2 seconds
+  uint32_t pulse_period = 2000;
+  float phase = (now % pulse_period) / float(pulse_period);
+  
+  // Use sine wave for smooth pulsing
+  float pulse_brightness = (sin(phase * 2 * M_PI) + 1.0f) / 2.0f;
+  float final_brightness = brightness_scale * pulse_brightness;
+  
+  this->set_rgb_output_(config.color, final_brightness);
+  this->is_blink_on_ = (pulse_brightness > 0.5f);
+}
+
+void RGBStatusLED::apply_state_(StatusState state) {
+  this->current_state_ = state;
+  
+  // Apply the appropriate event configuration based on state
+  switch (state) {
+    case StatusState::ERROR:
+      this->apply_effect_(this->error_config_);
+      break;
+      
+    case StatusState::WARNING:
+      this->apply_effect_(this->warning_config_);
+      break;
+      
+    case StatusState::BOOT:
+      this->apply_effect_(this->boot_config_);
       break;
       
     case StatusState::WIFI_CONNECTED:
-      // Solid WiFi color (white)
-      this->set_rgb_output_(this->wifi_color_);
-      this->is_blink_on_ = false;
+      this->apply_effect_(this->wifi_connected_config_);
       break;
       
     case StatusState::API_CONNECTED:
-      // Solid API color (green)
-      this->set_rgb_output_(this->api_color_);
-      this->is_blink_on_ = false;
+      this->apply_effect_(this->api_connected_config_);
+      break;
+      
+    case StatusState::API_DISCONNECTED:
+      this->apply_effect_(this->api_disconnected_config_);
       break;
       
     case StatusState::OTA_BEGIN:
-      // Solid OTA color (blue)
-      this->set_rgb_output_(this->ota_color_);
-      this->is_blink_on_ = false;
+      this->apply_effect_(this->ota_begin_config_);
       break;
       
     case StatusState::OTA_PROGRESS:
-      // Blinking OTA color (blue)
-      uint32_t ota_period = 1000;  // 1 second period
-      if ((now % ota_period) < (ota_period / 2)) {
-        if (!this->is_blink_on_) {
-          this->set_rgb_output_(this->ota_color_);
-          this->is_blink_on_ = true;
-        }
-      } else {
-        if (this->is_blink_on_) {
-          this->set_rgb_output_(0.0f, 0.0f, 0.0f);
-          this->is_blink_on_ = false;
-        }
-      }
+      this->apply_effect_(this->ota_progress_config_);
+      break;
+      
+    case StatusState::OTA_ERROR:
+      this->apply_effect_(this->ota_error_config_);
       break;
       
     case StatusState::OK:
-      // Solid OK color
-      this->set_rgb_output_(this->ok_color_);
-      this->is_blink_on_ = false;
+      this->apply_effect_(this->ok_config_);
       break;
       
     case StatusState::NONE:
