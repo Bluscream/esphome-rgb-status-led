@@ -31,27 +31,16 @@ The component follows a strict priority system (highest to lowest):
 | 2 | **User Control** | 🎨 Custom | User-defined | Manual user control |
 | 1 | **OK** | 🟢 Green | Solid | Everything normal |
 
-## 🛠️ Installation
+## � Quick Start
 
-### 1. Clone the Component
-
-```bash
-# In your ESPHome configuration directory
-mkdir components
-cd components
-git clone https://github.com/your-username/esphome-rgb-status-led.git rgb_status_led
-```
-
-### 2. Configure ESPHome
-
-Add the external component to your YAML configuration:
+### 1. Add to your ESPHome configuration
 
 ```yaml
-# Use local external components
+# Add the external component
 external_components:
-  - source: components
+  - source: github://Bluscream/esphome-rgb-status-led@main
 
-# RGB Status LED configuration
+# Configure the RGB Status LED
 light:
   - platform: rgb_status_led
     id: system_status_led
@@ -59,46 +48,8 @@ light:
     red: out_led_r
     green: out_led_g
     blue: out_led_b
-    
-    # Custom colors (optional - defaults shown)
-    error_color:
-      red: 100%
-      green: 0%
-      blue: 0%
-    warning_color:
-      red: 100%
-      green: 50%
-      blue: 0%
-    ok_color:
-      red: 0%
-      green: 100%
-      blue: 10%
-    boot_color:
-      red: 100%
-      green: 0%
-      blue: 0%
-    wifi_color:
-      red: 70%
-      green: 70%
-      blue: 70%
-    api_color:
-      red: 0%
-      green: 100%
-      blue: 10%
-    ota_color:
-      red: 0%
-      green: 0%
-      blue: 100%
-    
-    # Timing configuration
-    error_blink_speed: 250ms
-    warning_blink_speed: 1500ms
-    brightness: 50%
-    
-    # Priority mode
-    priority_mode: "status"  # or "user"
 
-# RGB LED outputs
+# Define your RGB outputs
 output:
   - platform: ledc
     id: out_led_r
@@ -114,10 +65,10 @@ output:
     channel: 2
 ```
 
-### 3. Add Event Automations
+### 2. Add event automations
 
 ```yaml
-# WiFi connection events
+# WiFi events
 wifi:
   on_connect: 
     then:
@@ -126,7 +77,7 @@ wifi:
     then:
       - lambda: 'id(system_status_led).set_wifi_connected(false);'
 
-# Home Assistant API events
+# API events
 api:
   on_client_connected:
     then:
@@ -151,20 +102,127 @@ ota:
       - lambda: 'id(system_status_led).set_ota_error();'
 ```
 
-## ⚙️ Configuration Options
+### 3. Upload and enjoy!
 
-### Color Configuration
+Your LED will now automatically show:
+- 🔴 **Red fast blink** for system errors
+- 🟠 **Orange slow blink** for system warnings  
+- ⚪ **White solid** when WiFi is connected
+- 🟢 **Green solid** when Home Assistant API is connected
+- 🔵 **Blue** during OTA updates
+- 🟢 **Green solid** when everything is OK (or off if disabled)
 
-Each status state can be customized with RGB values:
+## �🛠️ Installation
+
+### Method 1: GitHub Installation (Recommended)
+
+Add the component directly from GitHub to your ESPHome configuration:
 
 ```yaml
-error_color:
-  red: 100%    # 0.0 to 1.0 or 0% to 100%
-  green: 0%
-  blue: 0%
+# Add to your ESPHome configuration
+external_components:
+  - source: github://Bluscream/esphome-rgb-status-led@main
+
+# RGB Status LED configuration
+light:
+  - platform: rgb_status_led
+    id: system_status_led
+    name: "System Status LED"
+    red: out_led_r
+    green: out_led_g
+    blue: out_led_b
+    
+    # Event-based configuration with ESPHome-compatible defaults
+    error:
+      enabled: true
+      color:
+        red: 100%
+        green: 0%
+        blue: 0%
+      effect: "blink"  # Fast blink (ESPHome compatible)
+    
+    warning:
+      enabled: true
+      color:
+        red: 100%
+        green: 50%
+        blue: 0%
+      effect: "blink"  # Slow blink (ESPHome compatible)
+    
+    ok:
+      enabled: true
+      color:
+        red: 0%
+        green: 100%
+        blue: 10%
+      effect: "none"  # Solid
+    
+    # ... other events
+
+# RGB LED outputs
+output:
+  - platform: ledc
+    id: out_led_r
+    pin: GPIO4
+    channel: 0
+  - platform: ledc
+    id: out_led_g
+    pin: GPIO19
+    channel: 1
+  - platform: ledc
+    id: out_led_b
+    pin: GPIO18
+    channel: 2
 ```
 
-### Behavior Configuration
+### Method 2: Local Installation
+
+For development or customization:
+
+```bash
+# In your ESPHome configuration directory
+mkdir components
+cd components
+git clone https://github.com/Bluscream/esphome-rgb-status-led.git rgb_status_led
+```
+
+Then use local components:
+
+```yaml
+external_components:
+  - source: components
+```
+
+## ⚙️ Configuration Options
+
+### Event Configuration Structure
+
+Each event supports the following options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether this event is enabled |
+| `color` | object | - | RGB color (red, green, blue as percentages) |
+| `brightness` | float | `1.0` | Brightness override (0.0-1.0, 1.0 = use global) |
+| `effect` | string | `"none"` | Effect: `"none"`, `"blink"`, `"pulse"` |
+
+### Available Events
+
+| Event | Description | Default Color | Default Effect |
+|-------|-------------|-------------|---------------|
+| `error` | System errors | Red | Fast blink |
+| `warning` | System warnings | Orange | Slow blink |
+| `ok` | Everything normal | Green | Solid |
+| `boot` | Device booting | Red | Solid |
+| `wifi_connected` | WiFi connected | White | Solid |
+| `api_connected` | HA API connected | Green | Solid |
+| `api_disconnected` | HA API disconnected | Yellow | Solid |
+| `ota_begin` | OTA started | Blue | Solid |
+| `ota_progress` | OTA in progress | Blue | Blink |
+| `ota_end` | OTA completed | Green | Solid |
+| `ota_error` | OTA failed | Red | Fast blink |
+
+### Global Configuration
 
 | Option | Default | Description |
 |--------|---------|-------------|
