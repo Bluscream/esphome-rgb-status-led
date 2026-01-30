@@ -5,11 +5,13 @@ A powerful ESPHome external component that provides intelligent RGB LED status i
 ## 🚀 Features
 
 - **Native ESPHome Integration**: Hooks into ESPHome's application state for automatic error/warning detection
+- **ESPHome Compatible Timing**: Matches internal status_led blink patterns exactly (60% error duty, 17% warning duty)
 - **Connection Status Tracking**: Monitors WiFi and Home Assistant API connection status
 - **OTA Progress Indication**: Shows visual feedback during Over-The-Air updates
 - **Boot Phase Detection**: Indicates device startup status
 - **Priority Management**: Intelligent priority system balancing status indications with user control
 - **Full Customization**: Configurable colors, timing, and behavior
+- **Power Saving Mode**: Optional OK state disabling for battery-powered devices
 - **Clean Interface**: Simple YAML configuration with comprehensive automation support
 
 ## 📋 Status States & Priority
@@ -311,3 +313,55 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ESPHome Documentation](https://esphome.io/)
 - [ESPHome Components Guide](https://esphome.io/components/)
 - [ESPHome External Components](https://esphome.io/components/external_components/)
+
+## 🔧 Technical Details
+
+### ESPHome Compatibility
+
+This component is designed to be fully compatible with ESPHome's internal status_led implementation:
+
+#### **Status Flag Detection**
+```cpp
+// Uses the same flags as internal status_led
+uint32_t app_state = App.get_app_state();
+if ((app_state & STATUS_LED_ERROR) != 0u) { ... }    // Bit 4 (0x10)
+if ((app_state & STATUS_LED_WARNING) != 0u) { ... }  // Bit 3 (0x08)
+```
+
+#### **Blink Timing**
+```cpp
+// Error: 250ms period, 150ms on (60% duty cycle) - matches ESPHome exactly
+millis() % 250u < 150u
+
+// Warning: 1500ms period, 250ms on (17% duty cycle) - matches ESPHome exactly  
+millis() % 1500u < 250u
+```
+
+#### **Priority System**
+- **ERROR** (bit 4) takes precedence over **WARNING** (bit 3)
+- Additional states (OTA, WiFi, API, Boot) have higher priority
+- Maintains backward compatibility with existing ESPHome status behavior
+
+### Component Architecture
+
+```
+RGBStatusLED (LightOutput + Component)
+├── State Management
+│   ├── determine_status_state_() - Priority-based state selection
+│   ├── apply_state_() - Visual effects and timing
+│   └── should_show_status_() - User vs status priority
+├── Event Integration  
+│   ├── set_wifi_connected() - WiFi event handler
+│   ├── set_api_connected() - API event handler
+│   └── set_ota_*() - OTA event handlers
+└── Output Control
+    ├── set_rgb_output_() - Hardware abstraction
+    └── Color management with brightness scaling
+```
+
+### Memory Footprint
+
+- **RAM Usage**: ~200 bytes (state tracking + color buffers)
+- **Flash Usage**: ~8KB (compiled component)
+- **CPU Overhead**: Minimal (state checks only in loop)
+- **Compatible with**: ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP8266

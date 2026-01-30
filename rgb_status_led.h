@@ -161,9 +161,9 @@ class RGBStatusLED : public light::LightOutput, public Component {
   RGBColor api_color_{0.0f, 1.0f, 0.1f};       ///< Green for API connected
   RGBColor ota_color_{0.0f, 0.0f, 1.0f};       ///< Blue for OTA operations
 
-  // Timing configuration
-  uint32_t error_blink_speed_{250};     ///< Error blink period in milliseconds
-  uint32_t warning_blink_speed_{1500};  ///< Warning blink period in milliseconds
+  // Timing configuration - matches ESPHome internal status_led exactly
+  uint32_t error_blink_speed_{250};     ///< Error blink period in milliseconds (matches ESPHome)
+  uint32_t warning_blink_speed_{1500};  ///< Warning blink period in milliseconds (matches ESPHome)
   float brightness_{0.5f};               ///< Global brightness multiplier (0.0 to 1.0)
 
   // Priority and behavior configuration

@@ -22,8 +22,8 @@ void RGBStatusLED::setup() {
   this->boot_complete_time_ = millis();
   
   ESP_LOGCONFIG(TAG, "RGB Status LED setup completed");
-  ESP_LOGCONFIG(TAG, "  Error blink speed: %ums", this->error_blink_speed_);
-  ESP_LOGCONFIG(TAG, "  Warning blink speed: %ums", this->warning_blink_speed_);
+  ESP_LOGCONFIG(TAG, "  Error blink speed: %ums (matches ESPHome)", this->error_blink_speed_);
+  ESP_LOGCONFIG(TAG, "  Warning blink speed: %ums (matches ESPHome)", this->warning_blink_speed_);
   ESP_LOGCONFIG(TAG, "  Brightness: %.1f%%", this->brightness_ * 100.0f);
   ESP_LOGCONFIG(TAG, "  Priority mode: %s", 
                 (this->priority_mode_ == PriorityMode::STATUS_PRIORITY) ? "Status" : "User");
@@ -177,9 +177,9 @@ void RGBStatusLED::apply_state_(StatusState state) {
   
   switch (state) {
     case StatusState::ERROR: {
-      // Fast blinking
+      // Fast blinking - match ESPHome timing: 250ms period, 150ms on (60% duty cycle)
       uint32_t period = this->error_blink_speed_;
-      uint32_t on_time = period * 3 / 4;  // 75% on, 25% off
+      uint32_t on_time = period * 3 / 5;  // 60% on, 40% off (matching ESPHome)
       
       if ((now % period) < on_time) {
         if (!this->is_blink_on_) {
@@ -196,9 +196,9 @@ void RGBStatusLED::apply_state_(StatusState state) {
     }
     
     case StatusState::WARNING: {
-      // Slow blinking
+      // Slow blinking - match ESPHome timing: 1500ms period, 250ms on (17% duty cycle)
       uint32_t period = this->warning_blink_speed_;
-      uint32_t on_time = period / 4;  // 25% on, 75% off
+      uint32_t on_time = period / 6;  // 17% on, 83% off (matching ESPHome)
       
       if ((now % period) < on_time) {
         if (!this->is_blink_on_) {
